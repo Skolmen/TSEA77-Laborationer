@@ -65,14 +65,3 @@ DELAY_INNER_LOOP:
 	brne    DELAY_OUTER_LOOP
 	cbi     PORTB, 7
 	ret
-
-//READ_INCOMING_BITS:
-//	ldi r16, 10					; Helt tidssteg	
-//	call DELAY					; Vänta ett tidssteg för den första biten
-//	in r20, PINA				; Läser in från PINA till r20
-//	andi r20, $01				; Säkerställer att endast den första biten blir kvar
-//	lsl r21
-//	add r21, r20
-//	dec bitcounter
-//	brne READ_INCOMING_BITS
-//	ret
