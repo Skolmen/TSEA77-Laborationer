@@ -41,8 +41,8 @@ READ_INCOMING_BITS:
 	in		input, PINA				; Läser in från PINA till r20
 	andi	input, $01				; Säkerställer att endast den första biten blir kvar
 
-	lsr		input
-	ror		output
+	lsr		input					; LSR input om input(0) är 1 kommer  den skickas till carry
+	ror		output					; Tar carryn och lägger den som MSB på output
 
 	dec		bitcounter
 	brne	READ_INCOMING_BITS
@@ -50,7 +50,7 @@ READ_INCOMING_BITS:
 
 	ret
 
-DISP_NUM:						; Skriver ut siffran till HEX-display
+DISP_NUM:							; Skriver ut siffran till HEX-display
 	out		PORTB, output
 	ret
 
