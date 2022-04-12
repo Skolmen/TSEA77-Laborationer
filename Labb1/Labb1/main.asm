@@ -1,5 +1,5 @@
 SETUP:	
-	ldi		r16, HIGH(RAMEND)		; Ställer in stackpeckaren
+	ldi	r16, HIGH(RAMEND)		; Ställer in stackpeckaren
 	out		SPH, r16
 	ldi		r16, LOW(RAMEND)
 	out		SPL, r16
@@ -55,13 +55,13 @@ DISP_NUM:							; Skriver ut siffran till HEX-display
 	ret
 
 DELAY:
-	sbi     PORTB, 7
+	sbi		PORTB, 7
 DELAY_OUTER_LOOP:
-	ldi     r17, $1F
+	ldi		r17, $1F
 DELAY_INNER_LOOP:
-	dec     r17
-	brne    DELAY_INNER_LOOP
-	dec     timer
-	brne    DELAY_OUTER_LOOP
-	cbi     PORTB, 7
+	dec		r17
+	brne	DELAY_INNER_LOOP
+	dec		timer
+	brne	DELAY_OUTER_LOOP
+	cbi		PORTB, 7
 	ret
