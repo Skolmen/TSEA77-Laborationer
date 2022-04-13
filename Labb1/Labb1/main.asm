@@ -1,5 +1,5 @@
 SETUP:	
-	ldi	r16, HIGH(RAMEND)		; Ställer in stackpeckaren
+	ldi		r16, HIGH(RAMEND)		; Ställer in stackpeckaren
 	out		SPH, r16
 	ldi		r16, LOW(RAMEND)
 	out		SPL, r16
@@ -13,6 +13,7 @@ INIT:
 	.def	timer=r16
 	.def	input=r20
 	.def	output=r22
+	.equ	T = 10
 
 MAIN_LOOP:
 	call	RESET
@@ -21,8 +22,8 @@ MAIN_LOOP:
 	jmp		MAIN_LOOP
 	
 RESET:
-	ldi		timer, 10				; Halvt tidssteg
-	ldi		bitcounter, 8			; Räknare för 4 inkommande bitar
+	ldi		timer, T				; Halvt tidssteg
+	ldi		bitcounter, 4			; Räknare för 4 inkommande bitar
 	ldi		input, $00				; Återställer inläsnings registret
 	ldi		output, $00				; Återställer data registeret
 	ret
@@ -36,18 +37,16 @@ WAIT_FOR_START_BIT:
 	ret
 
 READ_INCOMING_BITS:
-	ldi		timer, 20				; Helt tidssteg	
+	ldi		timer, 2*T				; Helt tidssteg	
 	call	DELAY					; Vänta ett tidssteg för den första biten
 	in		input, PINA				; Läser in från PINA till r20
 	andi	input, $01				; Säkerställer att endast den första biten blir kvar
-
 	lsr		input					; LSR input om input(0) är 1 kommer  den skickas till carry
 	ror		output					; Tar carryn och lägger den som MSB på output
-
 	dec		bitcounter
 	brne	READ_INCOMING_BITS
-	;swap	output					; Vid 4-bitars byter nibblarna plats
-
+	call	DELAY
+	swap	output
 	ret
 
 DISP_NUM:							; Skriver ut siffran till HEX-display
