@@ -5,9 +5,9 @@ SETUP:
 	ldi		r16, LOW(RAMEND)
 	out		SPL, r16
 
-	.equ	SHORT = 50
-	.equ	LONG = SHORT * 3
-	.equ	SPACE_WORDS = SHORT * 7
+	.equ	SHORT = 30					; 20ms vid 1 MHz
+	.equ	LONG = SHORT * 3			; 60ms vid 1 Mhz
+	.equ	SPACE_WORDS = SHORT * 7		; 140ms vid 1 MHz
 	ser		r16
 	out		DDRB, r16
 	clr		r16
@@ -55,13 +55,16 @@ SEND_CHAR:
 	brcc	SHORT_BEEP					; Om carry = 0 skicka en kort
 	brcs	LONG_BEEP					; Om carry = 1 skicka en lång
 SHORT_BEEP:
-	; Skicka en kort beep
+	ldi		r21, SHORT					; 20 ms
+	call	SOUND
 	rjmp	SEND_CHAR
 LONG_BEEP:
-	; Skicka en kort beep
+	ldi		r21, LONG					; 60 ms
+	call	SOUND
 	rjmp	SEND_CHAR
 DONE_WITH_CHAR:
-	call	WAIT		; Vänta 3 beep
+	ldi		r21, LONG					; 60 ms
+	call	WAIT
 	ret
 
 //---- Sänder ut mellanslag ------------------------
@@ -69,21 +72,24 @@ SEND_SPACE:
 	call	WAIT		; Vänta 7 beep
 	ret
 
+//---- Väntarare tar in argument i r21 ------------
 WAIT:
-	
-	; Vänta antalet som behövs
-	
+	cbi		PORTB, 7
+	call	DELAY
 	ret
 
+//---- Ger ut ljudsignal ---------------------------
 SOUND:
-	
-	; Skicka ut en signal på PORTB
-
+	sbi		PORTB, 7
+	call	DELAY
+	cbi		PORTB, 7
+	ldi		r21, SHORT
+	call	DELAY
 	ret
 
-//Vet inte hur delayen riktigt ska fungera ännu
+//---- Delay, vid r21 = 30, 20ms ---------------------
 DELAY:
-	ldi		r20, $1F
+	ldi		r20, $DE
 DELAY_INNER_LOOP:
 	dec		r20
 	brne	DELAY_INNER_LOOP
@@ -91,10 +97,9 @@ DELAY_INNER_LOOP:
 	brne	DELAY
 	ret
 
-
 //---- Textmedelande ----
 MESSAGE:
-	.db "TEKNIK", $00
+	.db "BADA", $00
 //---- Binary table ----
 BINARY_TABLE:
 	.db $60, $88, $A8, $90, $40, $28, $D0, $08, $20, $78, $B0, $48, $E0, $A0, $F0, $68, $D8, $50, $10, $C0, $30, $18, $70, $98, $B8, $C8
