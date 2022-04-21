@@ -20,6 +20,13 @@ START:
 MORSE:
 	call	GET_CHAR
 	breq	START					; Om texten har körts återställs Z-pekaren
+
+	cpi		r16, $41				; Om ASCII-värdet är mindre än $41 skickas ett mellanslag
+	brcs	IS_SPACE
+
+	cpi		r16, $5b				; Om ASCII-värdet är större än $5A skickas ett mellanslag
+	brcc	IS_SPACE
+
 	subi	r16, $41
 	brmi	IS_SPACE				; Om flaggan N är satt är tecknet ett minus
 	call	LOOKUP					; Ändrar r16 till binärkodat
@@ -63,12 +70,13 @@ LONG_BEEP:
 	call	SOUND
 	rjmp	SEND_CHAR
 DONE_WITH_CHAR:
-	ldi		r21, LONG					; 60 ms
+	ldi		r21, SHORT * 2
 	call	WAIT
 	ret
 
 //---- Sänder ut mellanslag ------------------------
 SEND_SPACE:
+	ldi		r21, SPACE_WORDS
 	call	WAIT		; Vänta 7 beep
 	ret
 
@@ -76,20 +84,23 @@ SEND_SPACE:
 WAIT:
 	cbi		PORTB, 7
 	call	DELAY
+	call	DELAY
 	ret
 
 //---- Ger ut ljudsignal ---------------------------
 SOUND:
 	sbi		PORTB, 7
 	call	DELAY
+	call	DELAY
 	cbi		PORTB, 7
 	ldi		r21, SHORT
+	call	DELAY
 	call	DELAY
 	ret
 
 //---- Delay, vid r21 = 30, 20ms ---------------------
 DELAY:
-	ldi		r20, $DE
+	ldi		r20, $FF
 DELAY_INNER_LOOP:
 	dec		r20
 	brne	DELAY_INNER_LOOP
@@ -99,7 +110,7 @@ DELAY_INNER_LOOP:
 
 //---- Textmedelande ----
 MESSAGE:
-	.db "BADA", $00
+	.db "HEJ ", $00
 //---- Binary table ----
 BINARY_TABLE:
 	.db $60, $88, $A8, $90, $40, $28, $D0, $08, $20, $78, $B0, $48, $E0, $A0, $F0, $68, $D8, $50, $10, $C0, $30, $18, $70, $98, $B8, $C8
