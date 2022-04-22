@@ -1,43 +1,43 @@
-//---- Stï¿½ller in stackpekaren ----
+//---- Ställer in stackpekaren ----
 SETUP:
 	ldi		r16,HIGH(RAMEND)
 	out		SPH, r16
 	ldi		r16, LOW(RAMEND)
 	out		SPL, r16
 
-	.equ	SHORT = 30					; 20ms vid 1 MHz
-	.equ	LONG = SHORT * 3			; 60ms vid 1 Mhz
-	.equ	SPACE_WORDS = SHORT * 7		; 140ms vid 1 MHz
-	.equ	DELAY_COUNT = 2
+	.equ	SHORT = 20				
+	.equ	LONG = SHORT * 3			
+	.equ	SPACE_WORDS = SHORT * 7		
+	.equ	FREQ = 125
 	ser		r16
 	out		DDRB, r16
 	clr		r16
 
-//---- Stï¿½ller in Z - pekaren ----
+//---- Ställer in Z - pekaren ----
 START:
-	ldi		ZH, HIGH(MESSAGE * 2)	; Stï¿½ller stack pekaren fï¿½r textmeddelandet
+	ldi		ZH, HIGH(MESSAGE * 2)	; Ställer stack pekaren för textmeddelandet
 	ldi		ZL, LOW (MESSAGE * 2)
 
 MORSE:
-	lpm		r16, Z+					; Hï¿½mtar bokstav frï¿½n textstrï¿½ngen
+	lpm		r16, Z+					; Hämtar bokstav från textsträngen
 	cpi		r16, $00
-	breq	START					; Om texten har kï¿½rts ï¿½terstï¿½lls Z-pekaren
+	breq	START					; Om texten har körts återställs Z-pekaren
 
-	cpi		r16, $5b				; Om ASCII-vï¿½rdet ï¿½r stï¿½rre ï¿½n $5A skickas ett mellanslag
+	cpi		r16, $5b				; Om ASCII-värdet är större än $5A skickas ett mellanslag
 	brcc	IS_SPACE
 
 	subi	r16, $41
-	brmi	IS_SPACE				; Om flaggan N ï¿½r satt ï¿½r tecknet under ASCII-vï¿½rder av A
-	call	LOOKUP					; ï¿½ndrar r16 till binï¿½rkodat
+	brmi	IS_SPACE				; Om flaggan N är satt är tecknet under ASCII-värder av A
+	call	LOOKUP					; Ändrar r16 till binärkodat
 
-	call	SEND_CHAR				; Sï¿½nd ut karaktï¿½ren pï¿½ r16
+	call	SEND_CHAR				; Sänd ut karaktären på r16
 
 	rjmp	MORSE
 IS_SPACE:
 	call	SEND_SPACE
 	rjmp	MORSE
 
-//---- ï¿½versï¿½tter ASCII-tecknet till binï¿½rkodat ----
+//---- Översätter ASCII-tecknet till binärkodat ----
 LOOKUP:
 	push	ZH 
 	push	ZL
@@ -49,71 +49,66 @@ LOOKUP:
 	pop		ZH
 	ret
 
-//---- Sï¿½nder ut karaktï¿½ren ------------------------
+//---- Sänder ut karaktären ------------------------
 SEND_CHAR:
-	cpi		r16, $80					; Om r16 har vï¿½rdet $80 har tecknet skickats
+	cpi		r16, $80					; Om r16 har värdet $80 har tecknet skickats
 	breq	DONE_WITH_CHAR
 	lsl		r16
 	brcc	SHORT_BEEP					; Om carry = 0 skicka en kort
-	brcs	LONG_BEEP					; Om carry = 1 skicka en lï¿½ng
+	brcs	LONG_BEEP					; Om carry = 1 skicka en lång
 SHORT_BEEP:
 	ldi		r21, SHORT					; 20 ms
 	call	SOUND
+	ldi		r21, SHORT
+	call	NO_SOUND
 	rjmp	SEND_CHAR
 LONG_BEEP:
 	ldi		r21, LONG					; 60 ms
 	call	SOUND
+	ldi		r21, SHORT
+	call	NO_SOUND
 	rjmp	SEND_CHAR
 DONE_WITH_CHAR:
 	ldi		r21, SHORT * 2
-	call	DELAY
+	call	NO_SOUND
 	ret
 
-//---- Sï¿½nder ut mellanslag ------------------------
+//---- Sänder ut mellanslag ------------------------
 SEND_SPACE:
+	cbi		PORTB, 7
 	ldi		r21, SPACE_WORDS
-	call	DELAY
+	call	NO_SOUND
 	ret
 
 //---- Ger ut ljudsignal ---------------------------
 SOUND:
 	sbi		PORTB, 7
-	call	DELAY
+	call	WAIT
 	cbi		PORTB, 7
-	ldi		r21, SHORT
-	call	DELAY
+	call	WAIT					; Delay mellan beeps i bokstaven
+	dec		r21
+	brne	SOUND
 	ret
 
-//---- Delay, vid r21 = 30, 20ms ---------------------
-DELAY:
-	push	r20
-	push	r19
-	push	r18
-	//-------------
-
-	ldi		r19, DELAY_COUNT
-	mov		r18, r21
-DELAY_START:
-	mov		r21, r18
-DELAY_OUTER_LOOP:
-	ldi		r20, $FF
-DELAY_INNER_LOOP:
-	dec		r20
-	brne	DELAY_INNER_LOOP
+NO_SOUND:
+	cbi		PORTB, 7
+	call	WAIT
+	call	WAIT
 	dec		r21
-	brne	DELAY_OUTER_LOOP
-	dec		r19
-	brne	DELAY_START
+	brne	NO_SOUND
+	ret
 
-	//-------------
-	pop		r18
-	pop		r19
-	pop		r20
+WAIT:
+	ldi r25, HIGH(FREQ)
+	ldi r24, LOW(FREQ)
+WAIT_INNER:
+	sbiw r24, 1
+	brne WAIT_INNER
 	ret
 
 //---- Textmedelande ----
 MESSAGE:
-	.db "HEJ ", $00
+	.db "A,", $00
 //---- Binary table ----
 BINARY_TABLE:
 	.db $60, $88, $A8, $90, $40, $28, $D0, $08, $20, $78, $B0, $48, $E0, $A0, $F0, $68, $D8, $50, $10, $C0, $30, $18, $70, $98, $B8, $C8
