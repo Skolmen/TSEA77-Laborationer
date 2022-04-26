@@ -119,7 +119,7 @@ WAIT_INNER:
 
 //---- Textmedelande ----
 MESSAGE:
-	.db "SOS", $00
+	.db "S", $00
 //---- Binary table ----
 BINARY_TABLE:
 	.db $60, $88, $A8, $90, $40, $28, $D0, $08, $20, $78, $B0, $48, $E0, $A0, $F0, $68, $D8, $50, $10, $C0, $30, $18, $70, $98, $B8, $C8
