@@ -5,10 +5,10 @@ SETUP:
 	ldi			r16, LOW(RAMEND)
 	out 		SPL, r16
 
-	.equ 		SHORT = 35				
+	.equ 		SHORT = 10				
 	.equ		LONG = SHORT * 3			
 	.equ 		SPACE_WORDS = SHORT * 7		
-	.equ 		FREQ = 370				; Vid 1 Mhz = 0,5 ms 370 i FREQ (Tror att det 1 MHz iallfall)
+	.equ 		FREQ = 500				; Vid 1 Mhz = 0,5 ms 370 i FREQ (Tror att det 1 MHz iallfall)
 	ser			r16
 	out			DDRB, r16
 	clr			r16
@@ -47,6 +47,7 @@ LOOKUP:
 	ldi			ZH, HIGH(BINARY_TABLE * 2)
 	ldi			ZL, LOW (BINARY_TABLE * 2)
 	add			ZL, r16
+	;adc			ZH, ZERO
 	lpm			r16, Z
 	pop			ZL
 	pop			ZH
@@ -66,7 +67,6 @@ SHORT_BEEP:
 LONG_BEEP:
 	ldi			r21, LONG					; 60 ms
 	call 		SOUND
-	rjmp 		BEEP_SENT
 BEEP_SENT:
 	ldi			r21, SHORT
 	call 		NO_SOUND
@@ -119,7 +119,7 @@ WAIT_INNER:
 
 //---- Textmedelande ----
 MESSAGE:
-	.db "S", $00
+	.db "DATOR TEKNIK", $00
 //---- Binary table ----
 BINARY_TABLE:
 	.db $60, $88, $A8, $90, $40, $28, $D0, $08, $20, $78, $B0, $48, $E0, $A0, $F0, $68, $D8, $50, $10, $C0, $30, $18, $70, $98, $B8, $C8
