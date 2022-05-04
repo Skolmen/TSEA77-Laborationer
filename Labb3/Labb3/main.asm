@@ -1,6 +1,6 @@
 //---- Datasegment i SRAM -------------
 	.dseg
-	.org		SRAM_START
+	.org		0x0060
 TIME: 
 	.byte 4		; Definerar TIME
 CURRENT_SEGMENT:
@@ -33,14 +33,14 @@ INIT:
 	ldi			r17, 0
 	sts			CURRENT_SEGMENT, r17
 
-	ldi			r16, 7
-	sts			TIME, r16
-	ldi			r16, 3
-	sts			TIME + 1, r16
-	ldi			r16, 3
-	sts			TIME + 2, r16
-	ldi			r16, 1
-	sts			TIME + 3, r16
+	;ldi			r16, 7
+	;sts			TIME, r16
+	;ldi			r16, 3
+	;sts			TIME + 1, r16
+	;ldi			r16, 3
+	;sts			TIME + 2, r16
+	;ldi			r16, 1
+	;sts			TIME + 3, r16
 
 INIT_IO:
 	ldi			r16, $7F
@@ -58,7 +58,8 @@ INIT_INTERUPTS:
 	sei
 
 LOOP:
-	jmp LOOP
+	call		BCD
+	jmp			LOOP
 
 //--- Avbrottsrutiner -------------------------
 ISR0:
@@ -102,21 +103,20 @@ MUX:
 	ldi			XH, HIGH(TIME)
 	ldi			XL, LOW (TIME)
 
-	ld			r16, Z
+	ld			r16, X
 	call		LOOKUP
 
-	out			PORTB, r16
 	out			PORTA, r17
+	out			PORTB, r16
 
 	inc 		r17
-	add			ZL, r17
+	add			XL, r17
 	cpi			r17, 4
-	brne		LAST_SEGMENT
+	brne		MUX_DONE
 	clr			r17
 
-LAST_SEGMENT:
+MUX_DONE:
 	sts			CURRENT_SEGMENT, r17
-
 
 	//----------------------
 	pop			XL
@@ -127,56 +127,53 @@ LAST_SEGMENT:
 
 BCD:
 	push		r16
+	push		XH
+	push		XL
 	//----------------------
 
-TIME_0:									; 00:0X
-	lds			r16, TIME
-	cpi			r16, $9
-	breq		TIME_1
+	lds			XL, LOW (TIME)
+	lds			XH, HIGH(TIME)
+
+	clr			r16
+	ld			r16, X
 	inc			r16
-	sts			TIME, r16
-	jmp			COUNT_DONE
-TIME_1:									; 00:X0
-	lds			r16, $0
-	sts			TIME, r16
+	st 			X, r16
+	cpi			r16, 9
+	brne		BCD_DONE
+	clr			r16
+	st			X+, r16
 
-	lds			r16, TIME + 1
-	cpi			r16, $5
-	breq		TIME_2
+	clr			r16
+	ld			r16, X
 	inc			r16
-	sts			TIME + 1, r16
-	jmp			COUNT_DONE
-TIME_2:
-	lds			r16, $0
-	sts			TIME + 1, r16
+	st 			X, r16
+	cpi			r16, 6
+	brne		BCD_DONE
+	clr			r16
+	st			X+, r16
 
-	lds			r16, TIME + 2
-	cpi			r16, $9
-	breq		TIME_3
+	clr			r16
+	ld			r16, X
 	inc			r16
-	sts			TIME + 1, r16
-	jmp			COUNT_DONE
-TIME_3:
-	lds			r16, $0
-	sts			TIME + 2, r16
+	st 			X, r16
+	cpi			r16, 9
+	brne		BCD_DONE
+	clr			r16
+	st			X+, r16
 
-	lds			r16, TIME + 3
-	cpi			r16, $5
-	breq		RESET
+	clr			r16
+	ld			r16, X
 	inc			r16
-	sts			TIME + 3, r16
-	jmp			COUNT_DONE
-
-RESET:
-	ldi			r16, $00
-	sts			TIME, r16
-	sts			TIME + 1, r16
-	sts			TIME + 2, r16
-	sts			TIME + 3, r16
+	st 			X, r16
+	cpi			r16, 9
+	brne		BCD_DONE
+	call		RESET_TIME
 
 
-COUNT_DONE:
+BCD_DONE:
 	//----------------------
+	pop			XL
+	pop			XH
 	pop			r16
 	ret
 
@@ -189,6 +186,18 @@ LOOKUP:
 	lpm			r16, Z
 	pop			ZL
 	pop			ZH
+	ret
+
+RESET_TIME:
+	push		r16 
+	//----------------------
+	clr			r16
+	sts			TIME, r16
+	sts			TIME + 1, r16
+	sts			TIME + 2, r16
+	sts			TIME + 3, r16
+	//----------------------
+	pop			r16
 	ret
 
 SEG_DISP_TBL:
