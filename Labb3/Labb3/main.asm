@@ -3,6 +3,8 @@
 	.org		SRAM_START
 TIME: 
 	.byte 4		; Definerar TIME
+CURRENT_SEGMENT:
+	.byte 1
 
 //--- Kodsegment i FLASH --------------
 	.cseg
@@ -11,10 +13,10 @@ TIME:
 	jmp			INIT
 
 	.org		INT0addr
-	jmp			BCD_INT0
+	jmp			ISR0
 
 	.org		INT1addr
-	jmp			INTERRUPT_INT1
+	jmp			ISR1
 
 	.org		INT_VECTORS_SIZE
 
@@ -28,13 +30,16 @@ INIT:
 	ldi			r16, LOW (RAMEND)
 	out			SPL, r16
 
-	ldi			r16, 5
-	sts			TIME, r16
-	ldi			r16, 6
-	sts			TIME + 1, r16
+	ldi			r17, 0
+	sts			CURRENT_SEGMENT, r17
+
 	ldi			r16, 7
+	sts			TIME, r16
+	ldi			r16, 3
+	sts			TIME + 1, r16
+	ldi			r16, 3
 	sts			TIME + 2, r16
-	ldi			r16, 8
+	ldi			r16, 1
 	sts			TIME + 3, r16
 
 INIT_IO:
@@ -56,9 +61,71 @@ LOOP:
 	jmp LOOP
 
 //--- Avbrottsrutiner -------------------------
-BCD_INT0:
+ISR0:
 	push		r16
 	in			r16,SREG
+	//----------------------
+	call		BCD
+	//----------------------
+	out			SREG, r16
+	pop			r16
+	reti
+
+ISR1:
+	push		r16				//Sparar undan register som kommer användas i rutinen
+	in			r16,SREG		//Sparar undan statusregistret
+	//----------------------
+	call		MUX
+	//----------------------
+	pop			r16
+	out			SREG, r16
+	reti
+//-----------------------------------------------
+
+MUX:
+	push		r16
+	push		r17
+	push		XH
+	push		XL
+	//----------------------
+
+	; Hämta nuvarnade segment
+	; Hämta siffra från TIME
+	; Lägg in på register
+	; Gå in i lookup
+	; Skicka ut innehållet på look up till portb
+	; gör detta 4 gånger
+	; profit?
+
+	lds			r17, CURRENT_SEGMENT
+
+	ldi			XH, HIGH(TIME)
+	ldi			XL, LOW (TIME)
+
+	ld			r16, Z
+	call		LOOKUP
+
+	out			PORTB, r16
+	out			PORTA, r17
+
+	inc 		r17
+	add			ZL, r17
+	cpi			r17, 4
+	brne		LAST_SEGMENT
+	clr			r17
+
+LAST_SEGMENT:
+	sts			CURRENT_SEGMENT, r17
+
+
+	//----------------------
+	pop			XL
+	pop			XH
+	pop			r17
+	pop			r16
+	ret
+
+BCD:
 	push		r16
 	//----------------------
 
@@ -111,53 +178,14 @@ RESET:
 COUNT_DONE:
 	//----------------------
 	pop			r16
-	out			SREG, r16
-	pop			r16
-	reti
-
-INTERRUPT_INT1:
-	push		r16				//Sparar undan register som kommer användas i rutinen
-	push		r17
-	push		ZH
-	push		ZL
-	in			r16,SREG		//Sparar undan statusregistret
-	push		r16				//------""-------
-	//----------------------
-
-	; hämta siffra från TIME
-	; Lägg in på register
-	; Gå in i lookup
-	; Skicka ut innehållet på look up till portb
-	; gör detta 4 gånger
-	; profit?
-
-	ldi			r17, 0
-	ldi			ZH, HIGH(TIME)
-	ldi			ZL, LOW (TIME)
-DISP_LOOP:
-	ld			r16, Z+
-	call		LOOKUP
-	out			PORTA, r17
-	out			PORTB, r16
-	inc 		r17
-	cpi			r17, 4
-	brne		DISP_LOOP
-
-	//----------------------
-	pop			r16
-	out			SREG, r16
-	pop			ZL
-	pop			ZH
-	pop			r17
-	pop			r16
-	reti
+	ret
 
 LOOKUP:
 	push 		ZH 
 	push 		ZL
 	ldi			ZH, HIGH(SEG_DISP_TBL * 2)
 	ldi			ZL, LOW (SEG_DISP_TBL * 2)
-	adiw		Z, r16
+	add			ZL, r16
 	lpm			r16, Z
 	pop			ZL
 	pop			ZH
