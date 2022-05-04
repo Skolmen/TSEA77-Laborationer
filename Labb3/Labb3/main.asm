@@ -1,6 +1,6 @@
 //---- Datasegment i SRAM -------------
 	.dseg
-	.org		0x0060
+	.org		SRAM_START
 TIME: 
 	.byte 4		; Definerar TIME
 CURRENT_SEGMENT:
@@ -167,7 +167,8 @@ BCD:
 	st 			X, r16
 	cpi			r16, 9
 	brne		BCD_DONE
-	call		RESET_TIME
+	clr			r16
+	st			X+, r16
 
 
 BCD_DONE:
@@ -186,18 +187,6 @@ LOOKUP:
 	lpm			r16, Z
 	pop			ZL
 	pop			ZH
-	ret
-
-RESET_TIME:
-	push		r16 
-	//----------------------
-	clr			r16
-	sts			TIME, r16
-	sts			TIME + 1, r16
-	sts			TIME + 2, r16
-	sts			TIME + 3, r16
-	//----------------------
-	pop			r16
 	ret
 
 SEG_DISP_TBL:
