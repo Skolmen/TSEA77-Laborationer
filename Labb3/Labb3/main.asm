@@ -1,7 +1,10 @@
+
+	.equ		DELAY = 25
+	.equ		SEGMENTS = 4
+
 //---- Datasegment i SRAM -------------
 	.dseg
-	.org		0x0060
-ARR:
+	.org		SRAM_START
 TIME: 
 	.byte 4		; Definerar TIME
 CURRENT_SEGMENT:
@@ -31,6 +34,8 @@ INIT:
 	ldi			r17, 0
 	sts			CURRENT_SEGMENT, r17
 
+	call		TIME_RESET
+
 INIT_IO:
 	ldi			r16, $7F
 	out			DDRB, r16
@@ -47,8 +52,7 @@ INIT_INTERUPTS:
 	sei
 
 LOOP:
-	call		BCD
-	jmp			LOOP
+	rjmp		LOOP
 
 //--- Avbrottsrutiner -------------------------
 ISR0:
@@ -79,34 +83,29 @@ MUX:
 	push		XL
 	//----------------------
 
-	; Hämta nuvarnade segment
-	; Hämta siffra från TIME
-	; Lägg in på register
-	; Gå in i lookup
-	; Skicka ut innehållet på look up till portb
-	; gör detta 4 gånger
-	; profit?
+	ldi			r16, 0				
+	out			PORTB, r16
 
 	lds			r17, CURRENT_SEGMENT
 
 	ldi			XH, HIGH(TIME)
 	ldi			XL, LOW (TIME)
+	add			XL, r17
 
 	ld			r16, X
 	call		LOOKUP
 
 	out			PORTA, r17
+	call		WAIT
 	out			PORTB, r16
 
 	inc 		r17
-	add			XL, r17
-	cpi			r17, 4
+	cpi			r17, SEGMENTS
 	brne		MUX_DONE
 	clr			r17
 
 MUX_DONE:
 	sts			CURRENT_SEGMENT, r17
-
 	//----------------------
 	pop			XL
 	pop			XH
@@ -116,6 +115,8 @@ MUX_DONE:
 
 BCD:
 	push		r16
+	push		r17
+	push		r18
 	push		XH
 	push		XL
 	//----------------------
@@ -123,51 +124,33 @@ BCD:
 	ldi			XH, HIGH(TIME)
 	ldi			XL, LOW (TIME)
 
-	; 00:0X
+	ldi			r17, SEGMENTS
+	
+BCD_INC:		// BCD-INC: (XH, XL, max=r17)
+	ldi			r18, 10
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
-	cpi			r16, 10
+
+	cpi			r17, 3			; När vi kommer hit ska den jämföra med 6 istället för 10 då 1 min = 60s
+	brne		HIGH_TEN
+	ldi			r18, 6
+
+HIGH_TEN:
+	cp 			r16, r18
 	brne		BCD_DONE
 	clr			r16
 	st			X+, r16
-
-	; 00:X0
-	clr			r16
-	ld			r16, X
-	inc			r16
-	st 			X, r16
-	cpi			r16, 6
-	brne		BCD_DONE
-	clr			r16
-	st			X+, r16
-
-	; 0X:00
-	clr			r16
-	ld			r16, X
-	inc			r16
-	st 			X, r16
-	cpi			r16, 10
-	brne		BCD_DONE
-	clr			r16
-	st			X+, r16
-
-	; X0:00
-	clr			r16
-	ld			r16, X
-	inc			r16
-	st 			X, r16
-	cpi			r16, 10
-	brne		BCD_DONE
-	clr			r16
-	st			X+, r16
-
+	dec			r17
+	brne		BCD_INC
 
 BCD_DONE:
 	//----------------------
 	pop			XL
 	pop			XH
+	pop			r18
+	pop			r17
 	pop			r16
 	ret
 
@@ -183,6 +166,46 @@ LOOKUP:
 	pop			ZH
 	ret
 
+WAIT:
+	push		r25
+	push		r24
+	//-----------------
+	ldi 		r25, HIGH(DELAY)
+	ldi 		r24, LOW(DELAY)
+WAIT_INNER:
+	sbiw  		r24, 1
+	brne  		WAIT_INNER
+	//-----------------
+	pop			r24
+	pop			r25
+	ret
+
+TIME_RESET:
+	push		XH
+	push		XL
+	push		r16
+	push		r17
+	//-----------------
+
+	ldi			XH, HIGH(TIME)
+	ldi			XL, LOW (TIME)
+
+	ldi			r16, SEGMENTS
+	ldi			r17, 0
+
+FOR_EACH_TIME:
+	st			X+, r17
+	dec			r16
+	cpi			r16, 0
+	brne		FOR_EACH_TIME
+	
+	//-----------------			
+	pop			r17
+	pop			r16
+	pop			XL
+	pop			XH
+	ret
+
 SEG_DISP_TBL:
-	.db $3F, $6, $5B, $4F, $64, $6D, $7D, $7, $7F, $67
+	.db $3F, $6, $5B, $4F, $66, $6D, $7D, $7, $7F, $67
 	//  0,   1,  2,   3,   4,   5,   6,   7,  8,   9
