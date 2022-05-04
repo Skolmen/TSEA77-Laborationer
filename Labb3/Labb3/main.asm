@@ -1,6 +1,7 @@
 //---- Datasegment i SRAM -------------
 	.dseg
-	.org		SRAM_START
+	.org		0x0060
+ARR:
 TIME: 
 	.byte 4		; Definerar TIME
 CURRENT_SEGMENT:
@@ -22,9 +23,6 @@ CURRENT_SEGMENT:
 
 //--- Initiering ----------------------
 INIT:
-	ldi			r16, 0b01100011
-	out			PORTB, r16
-
 	ldi			r16, HIGH(RAMEND)
 	out			SPH, r16
 	ldi			r16, LOW (RAMEND)
@@ -32,15 +30,6 @@ INIT:
 
 	ldi			r17, 0
 	sts			CURRENT_SEGMENT, r17
-
-	;ldi			r16, 7
-	;sts			TIME, r16
-	;ldi			r16, 3
-	;sts			TIME + 1, r16
-	;ldi			r16, 3
-	;sts			TIME + 2, r16
-	;ldi			r16, 1
-	;sts			TIME + 3, r16
 
 INIT_IO:
 	ldi			r16, $7F
@@ -131,18 +120,20 @@ BCD:
 	push		XL
 	//----------------------
 
-	lds			XL, LOW (TIME)
-	lds			XH, HIGH(TIME)
+	ldi			XH, HIGH(TIME)
+	ldi			XL, LOW (TIME)
 
+	; 00:0X
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
-	cpi			r16, 9
+	cpi			r16, 10
 	brne		BCD_DONE
 	clr			r16
 	st			X+, r16
 
+	; 00:X0
 	clr			r16
 	ld			r16, X
 	inc			r16
@@ -152,20 +143,22 @@ BCD:
 	clr			r16
 	st			X+, r16
 
+	; 0X:00
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
-	cpi			r16, 9
+	cpi			r16, 10
 	brne		BCD_DONE
 	clr			r16
 	st			X+, r16
 
+	; X0:00
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
-	cpi			r16, 9
+	cpi			r16, 10
 	brne		BCD_DONE
 	clr			r16
 	st			X+, r16
@@ -177,6 +170,7 @@ BCD_DONE:
 	pop			XH
 	pop			r16
 	ret
+
 
 LOOKUP:
 	push 		ZH 
