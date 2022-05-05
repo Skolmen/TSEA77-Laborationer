@@ -117,6 +117,7 @@ BCD:
 	push		r16
 	push		r17
 	push		r18
+	push		r19
 	push		XH
 	push		XL
 	//----------------------
@@ -126,18 +127,23 @@ BCD:
 
 	ldi			r17, SEGMENTS
 	
-BCD_INC:		// BCD-INC: (XH, XL, max=r17)
-	ldi			r18, 10
+BCD_INC:		
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
 
-	cpi			r17, 3			; När vi kommer hit ska den jämföra med 6 istället för 10 då 1 min = 60s
-	brne		HIGH_TEN
+	mov			r19, r17
+	lsr			r19
+	brcc		ODD_NUM
+EVEN_NUM:		//X0:X0
 	ldi			r18, 6
+	rjmp		BCD_COMP
 
-HIGH_TEN:
+ODD_NUM:		//0X:0X
+	ldi			r18, 10
+
+BCD_COMP:
 	cp 			r16, r18
 	brne		BCD_DONE
 	clr			r16
@@ -149,6 +155,7 @@ BCD_DONE:
 	//----------------------
 	pop			XL
 	pop			XH
+	pop			r19
 	pop			r18
 	pop			r17
 	pop			r16
