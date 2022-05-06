@@ -51,7 +51,13 @@ SEED:
 
 
 START:
-	***			; s�tt stackpekaren
+	// Ställer in stackpekare
+	ldi		r16, HIGH(RAMEND)
+	out		SPH, r16
+	ldi		r17, LOW(RAMDEND)
+	out		SPL, r16
+
+	call	IO_INIT
 	call	HW_INIT	
 	call	WARM
 RUN:
@@ -59,16 +65,16 @@ RUN:
 	call	ERASE_VMEM
 	call	UPDATE
 
-;*** 	V�nta en stund s� inte spelet g�r f�r fort 	***
+	;*** 	V�nta en stund s� inte spelet g�r f�r fort 	***
 	
-;*** 	Avg�r om tr�ff				 	***
+	;*** 	Avg�r om tr�ff				 	***
 
 	brne	NO_HIT	
-	ldi	r16,BEEP_LENGTH
+	ldi		r16, BEEP_LENGTH
 	call	BEEP
 	call	WARM
 NO_HIT:
-	jmp	RUN
+	jmp		RUN
 
 ; ---------------------------------------
 ; --- Multiplex display
@@ -116,10 +122,10 @@ MUX_DONE:
 ; --- Uses r16
 JOYSTICK:	
 
-;*** 	skriv kod som �kar eller minskar POSX beroende 	***
-;*** 	p� insignalen fr�n A/D-omvandlaren i X-led...	***
+	;*** 	skriv kod som �kar eller minskar POSX beroende 	***
+	;*** 	p� insignalen fr�n A/D-omvandlaren i X-led...	***
 
-;*** 	...och samma f�r Y-led 				***
+	;*** 	...och samma f�r Y-led 				***
 
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
@@ -129,20 +135,20 @@ JOY_LIM:
 ; --- LIMITS Limit POSX,POSY coordinates	
 ; --- Uses r16,r17
 LIMITS:
-	lds	r16,POSX	; variable
-	ldi	r17,7		; upper limit+1
+	lds		r16,POSX	; variable
+	ldi		r17,7		; upper limit+1
 	call	POS_LIM		; actual work
-	sts	POSX,r16
-	lds	r16,POSY	; variable
-	ldi	r17,5		; upper limit+1
+	sts		POSX,r16
+	lds		r16,POSY	; variable
+	ldi		r17,5		; upper limit+1
 	call	POS_LIM		; actual work
-	sts	POSY,r16
+	sts		POSY,r16
 	ret
 
 POS_LIM:
-	ori	r16,0		; negative?
+	ori		r16,0		; negative?
 	brmi	POS_LESS	; POSX neg => add 1
-	cp	r16,r17		; past edge
+	cp		r16,r17		; past edge
 	brne	POS_OK
 	subi	r16,2
 POS_LESS:
@@ -155,11 +161,11 @@ POS_OK:
 ; --- with POSX/Y, TPOSX/Y
 ; --- Uses r16, r17
 UPDATE:	
-	clr	ZH 
-	ldi	ZL,LOW(POSX)
+	clr		ZH 
+	ldi		ZL,LOW(POSX)
 	call 	SETPOS
-	clr	ZH
-	ldi	ZL,LOW(TPOSX)
+	clr		ZH
+	ldi		ZL,LOW(TPOSX)
 	call	SETPOS
 	ret
 
@@ -168,20 +174,20 @@ UPDATE:
 ; --- 1st call Z points to POSX at entry and POSY at exit
 ; --- 2nd call Z points to TPOSX at entry and TPOSY at exit
 SETPOS:
-	ld	r17,Z+  	; r17=POSX
+	ld		r17,Z+  	; r17=POSX
 	call	SETBIT		; r16=bitpattern for VMEM+POSY
-	ld	r17,Z		; r17=POSY Z to POSY
-	ldi	ZL,LOW(VMEM)
-	add	ZL,r17		; *(VMEM+T/POSY) ZL=VMEM+0..4
-	ld	r17,Z		; current line in VMEM
-	or	r17,r16		; OR on place
-	st	Z,r17		; put back into VMEM
+	ld		r17,Z		; r17=POSY Z to POSY
+	ldi		ZL,LOW(VMEM)
+	add		ZL,r17		; *(VMEM+T/POSY) ZL=VMEM+0..4
+	ld		r17,Z		; current line in VMEM
+	or		r17,r16		; OR on place
+	st		Z,r17		; put back into VMEM
 	ret
 	
 ; --- SETBIT Set bit r17 on r16
 ; --- Uses r16, r17
 SETBIT:
-	ldi	r16,$01		; bit to shift
+	ldi		r16,$01		; bit to shift
 SETBIT_LOOP:
 	dec 	r17			
 	brmi 	SETBIT_END	; til done
@@ -195,24 +201,34 @@ SETBIT_END:
 ; --- Uses r16
 HW_INIT:
 
-;*** 	Konfigurera h�rdvara och MUX-avbrott enligt ***
-;*** 	ditt elektriska schema. Konfigurera 		***
-;*** 	flanktriggat avbrott p� INT0 (PD2).			***
+	;*** 	Konfigurera h�rdvara och MUX-avbrott enligt ***
+	;*** 	ditt elektriska schema. Konfigurera 		***
+	;*** 	flanktriggat avbrott p� INT0 (PD2).			***
 	
 	sei			; display on
+	ret
+
+; ---------------------------------------
+; --- I/O init
+; --- Uses r16
+IO_INIT:
+	ser		r16
+	out		DDRB, r16
+	ldi		r16, $7
+	out		DDRA, r16
 	ret
 
 ; ---------------------------------------
 ; --- WARM start. Set up a new game
 WARM:
 
-;*** 	S�tt startposition (POSX,POSY)=(0,2)		***
+	;*** 	S�tt startposition (POSX,POSY)=(0,2)		***
 
 	push	r0		
 	push	r0		
 	call	RANDOM		; RANDOM returns x,y on stack
 
-;*** 	S�tt startposition (TPOSX,POSY)				***
+	;*** 	S�tt startposition (TPOSX,POSY)				***
 
 	call	ERASE_VMEM
 	ret
@@ -228,23 +244,23 @@ WARM:
 ; ---	pop TPOSY
 ; --- Uses r16
 RANDOM:
-	in	r16,SPH
-	mov	ZH,r16
-	in	r16,SPL
-	mov	ZL,r16
-	lds	r16,SEED
+	in		r16,SPH
+	mov		ZH,r16
+	in		r16,SPL
+	mov		ZL,r16
+	lds		r16,SEED
 	
-;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
-;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
+	;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
+	;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
 
 	;***		; store TPOSX	2..6
 	;***		; store TPOSY   0..4
 	ret
 
 
-	; ---------------------------------------
-	; --- Erase Videomemory bytes
-	; --- Clears VMEM..VMEM+4
+; ---------------------------------------
+; --- Erase Videomemory bytes
+; --- Clears VMEM..VMEM+4
 	
 ERASE_VMEM:
 
@@ -252,11 +268,11 @@ ERASE_VMEM:
 
 	ret
 
-	; ---------------------------------------
-	; --- BEEP(r16) r16 half cycles of BEEP-PITCH
+; ---------------------------------------
+; --- BEEP(r16) r16 half cycles of BEEP-PITCH
 BEEP:	
 
-;*** skriv kod f�r ett ljud som ska markera tr�ff 	***
+	;*** skriv kod f�r ett ljud som ska markera tr�ff 	***
 
 	ret
 
