@@ -45,9 +45,9 @@ SEED:
 ; --- Code
 	.cseg
 	.org 	$0
-	jmp	START
+	jmp		START
 	.org	INT0addr
-	jmp	MUX
+	jmp		ISR0_MUX
 
 
 START:
@@ -72,11 +72,43 @@ NO_HIT:
 
 ; ---------------------------------------
 ; --- Multiplex display
-MUX:	
+ISR0_MUX:	
+	push	r16
+	push	r17
+	push	XH
+	push	XL
+	//------------------
 
-;*** 	skriv rutin som handhar multiplexningen och ***
-;*** 	utskriften till diodmatrisen. �ka SEED.		***
+	;*** 	skriv rutin som handhar multiplexningen och ***
+	;*** 	utskriften till diodmatrisen. �ka SEED.		***
 
+	ldi		r16, 0
+	out		PORTB, 0
+
+	lds		r17, LINE
+
+	ldi		XH, HIGH(VMEM)
+	ldi		XL, LOW(VMEM)
+	add		XL, r17
+
+	ld		r16, X
+
+	out		PORTA, r17
+	; call WAIT?
+	out		PORTB, r16
+
+	inc		r17
+	cpi		r17, VMEM_SZ
+	brne	MUX_DONE
+	clr		r17
+	
+MUX_DONE:
+	sts		LINE, r17
+	//------------------
+	pop		XL
+	pop		XH
+	pop		r17
+	pop		r16
 	reti
 		
 ; ---------------------------------------
