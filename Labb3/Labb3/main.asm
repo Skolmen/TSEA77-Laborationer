@@ -52,6 +52,7 @@ INIT_INTERUPTS:
 	sei
 
 LOOP:
+	;call		BCD
 	rjmp		LOOP
 
 //--- Avbrottsrutiner -------------------------
@@ -66,7 +67,7 @@ ISR0:
 	reti
 
 ISR1:
-	push		r16				//Sparar undan register som kommer användas i rutinen
+	push		r16				//Sparar undan register som kommer anvï¿½ndas i rutinen
 	in			r16,SREG		//Sparar undan statusregistret
 	//----------------------
 	call		MUX
@@ -94,18 +95,16 @@ MUX:
 
 	ld			r16, X
 	call		LOOKUP
-
+	
+	andi		r17, $3
 	out			PORTA, r17
-	call		WAIT
+	inc 		r17
+
+	sts			CURRENT_SEGMENT, r17
+
+	;call		WAIT //Kanske mï¿½ste tas bort
 	out			PORTB, r16
 
-	inc 		r17
-	cpi			r17, SEGMENTS
-	brne		MUX_DONE
-	clr			r17
-
-MUX_DONE:
-	sts			CURRENT_SEGMENT, r17
 	//----------------------
 	pop			XL
 	pop			XH
@@ -117,7 +116,6 @@ BCD:
 	push		r16
 	push		r17
 	push		r18
-	push		r19
 	push		XH
 	push		XL
 	//----------------------
@@ -125,37 +123,33 @@ BCD:
 	ldi			XH, HIGH(TIME)
 	ldi			XL, LOW (TIME)
 
-	ldi			r17, SEGMENTS
-	
+	ldi			r17, 0b1010
+	ldi			r18, 0b1100 //XOR Vï¿½rdet
+
 BCD_INC:		
 	clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
 
-	mov			r19, r17
-	lsr			r19
-	brcc		ODD_NUM
-EVEN_NUM:		//X0:X0
-	ldi			r18, 6
-	rjmp		BCD_COMP
-
-ODD_NUM:		//0X:0X
-	ldi			r18, 10
-
-BCD_COMP:
-	cp 			r16, r18
+	cp 			r16, r17
 	brne		BCD_DONE
+	eor			r17, r18
 	clr			r16
 	st			X+, r16
-	dec			r17
-	brne		BCD_INC
+
+	//Om man kommer till TIME + 5 bï¿½rja om
+	mov			r16, XL
+	subi		r16, LOW(TIME)
+	cpi			r16, SEGMENTS
+	breq		BCD_DONE
+
+	rjmp		BCD_INC
 
 BCD_DONE:
 	//----------------------
 	pop			XL
 	pop			XH
-	pop			r19
 	pop			r18
 	pop			r17
 	pop			r16
