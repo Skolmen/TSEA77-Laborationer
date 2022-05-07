@@ -100,11 +100,13 @@ ISR0_MUX:
 	ld		r16, X
 
 	out		PORTA, r17
-	; call WAIT?
-	out		PORTB, r16
 
 	inc		r17
 	cpi		r17, VMEM_SZ
+
+	; call WAIT?
+	out		PORTB, r16
+
 	brne	MUX_DONE
 	clr		r17
 	
@@ -127,6 +129,11 @@ JOYSTICK:
 
 	;*** 	...och samma f�r Y-led 				***
 
+	; Ta in data från joystick
+	; Flytta beronede på insignal
+	; Ta in signlaer på PORTA7 och 6 x=6, y=7
+
+
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
 	ret
@@ -134,7 +141,7 @@ JOY_LIM:
 ; ---------------------------------------
 ; --- LIMITS Limit POSX,POSY coordinates	
 ; --- Uses r16,r17
-LIMITS:
+LIMITS:		//---- SKA EJ ÄNDRAS -----
 	lds		r16,POSX	; variable
 	ldi		r17,7		; upper limit+1
 	call	POS_LIM		; actual work
@@ -145,7 +152,7 @@ LIMITS:
 	sts		POSY,r16
 	ret
 
-POS_LIM:
+POS_LIM:	//---- SKA EJ ÄNDRAS -----
 	ori		r16,0		; negative?
 	brmi	POS_LESS	; POSX neg => add 1
 	cp		r16,r17		; past edge
@@ -160,7 +167,7 @@ POS_OK:
 ; --- UPDATE VMEM
 ; --- with POSX/Y, TPOSX/Y
 ; --- Uses r16, r17
-UPDATE:	
+UPDATE:		//---- SKA EJ ÄNDRAS -----
 	clr		ZH 
 	ldi		ZL,LOW(POSX)
 	call 	SETPOS
@@ -173,7 +180,7 @@ UPDATE:
 ; --- Uses r16, r17
 ; --- 1st call Z points to POSX at entry and POSY at exit
 ; --- 2nd call Z points to TPOSX at entry and TPOSY at exit
-SETPOS:
+SETPOS:		//---- SKA EJ ÄNDRAS -----
 	ld		r17,Z+  	; r17=POSX
 	call	SETBIT		; r16=bitpattern for VMEM+POSY
 	ld		r17,Z		; r17=POSY Z to POSY
@@ -186,7 +193,7 @@ SETPOS:
 	
 ; --- SETBIT Set bit r17 on r16
 ; --- Uses r16, r17
-SETBIT:
+SETBIT:		//---- SKA EJ ÄNDRAS -----
 	ldi		r16,$01		; bit to shift
 SETBIT_LOOP:
 	dec 	r17			
