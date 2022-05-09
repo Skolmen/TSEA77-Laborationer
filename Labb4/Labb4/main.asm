@@ -46,9 +46,11 @@ SEED:
 	.cseg
 	.org 	$0
 	jmp		START
+	
 	.org	INT0addr
-	jmp		ISR0_MUX
-
+	jmp		ISR0
+	
+	.org	INT_VECTORS_SIZE
 
 START:
 	// Ställer in stackpekare
@@ -56,6 +58,10 @@ START:
 	out		SPH, r16
 	ldi		r17, LOW(RAMEND)
 	out		SPL, r16
+
+	ldi		r16, 3
+	sts		SEED, r16
+
 
 	call	AD_INIT
 	call	IO_INIT
@@ -78,8 +84,20 @@ NO_HIT:
 	jmp		RUN
 
 ; ---------------------------------------
+; --- Interrupt 0
+ISR0:	
+	push	r16
+	in		r16, SREG
+	//----------------
+	call	MUX
+	INCSRAM SEED
+	//----------------
+	out		SREG, r16
+	pop		r16
+	reti
+; ---------------------------------------
 ; --- Multiplex display
-ISR0_MUX:	
+MUX:
 	push	r16
 	push	r17
 	push	XH
@@ -119,12 +137,13 @@ MUX_DONE:
 	pop		XH
 	pop		r17
 	pop		r16
-	reti
-		
+	ret
+
 ; ---------------------------------------
 ; --- JOYSTICK Sense stick and update POSX, POSY
 ; --- Uses r16
 JOYSTICK:	
+	push	r16
 
 	;*** 	skriv kod som �kar eller minskar POSX beroende 	***
 	;*** 	p� insignalen fr�n A/D-omvandlaren i X-led...	***
@@ -132,12 +151,39 @@ JOYSTICK:
 	;*** 	...och samma f�r Y-led 				***
 
 	; Ta in data från joystick
-	; Flytta beronede på insignal
-	; Ta in signlaer på PORTA7 och 6 x=6, y=7
+	; PortA3 x-led = ADC 3 = 00011 ADMUX
+	; PortA4 y-led = ADC 4 = 00100 ADMUX
+	; Först X-led
+	; Sedan y-led
 
+	; X-LED
+	ldi		r16, (1 << MUX0) | (1 << MUX1) | (1 << ADLAR)
+ADC_CONVERT:
+	out		ADMUX, r16
+CONVERT:
+	sbi		ADCSRA, ADSC
+WAIT_FOR_CONVERT:
+	sbic	ADCSRA, ADSC
+	rjmp	WAIT_FOR_CONVERT
+	in		r16, ADCH
+	andi	r16, $C0
+
+
+	;Minska eller öka X/Y-pos
+
+
+	lds		r16, ADMUX
+	cpi		r16, (1 << MUX2) | (1 << ADLAR)
+	breq	JOY_LIM
+	; Y-LED
+	ldi		r16, (1 << MUX2) | (1 << ADLAR)
+	rjmp	ADC_CONVERT
+	
 
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
+
+	pop		r16
 	ret
 
 ; ---------------------------------------
@@ -222,38 +268,59 @@ HW_INIT:
 ; --- I/O init
 ; --- Uses r16
 IO_INIT:
+	push	r16
+
 	ser		r16
 	out		DDRB, r16	//PB0-6 Disp, PB7, Ljud
 	ldi		r16, $3
 	out		DDRA, r16	//PA0-3 Disp row, PA3-4 joystick input
+	
+	pop		r16
 	ret
 
 ; ---------------------------------------
 ; --- AD init
 ; --- Uses r16
 AD_INIT:
+	push	r16
+	
 	clr		r16
-	ldi		r16, (1<<MUX1) | (1<<MUX0) | (1<<MUX2)
-	out		ADMUX, r16
+	ldi		r16, (1<<ADEN) | (1 << ADPS1) | (1 << ADPS0)
+	out		ADCSRA, r16
 
+	pop		r16
 	ret
 ; ---------------------------------------
 ; --- WARM start. Set up a new game
 WARM:
+	push	r16
+	push	r17
 
 	;*** 	S�tt startposition (POSX,POSY)=(0,2)		***
+	ldi		r16, 0
+	sts		POSX, r16
+	ldi		r16, 2
+	sts		POSY, r16
 
 	push	r0		
 	push	r0		
 	call	RANDOM		; RANDOM returns x,y on stack
+	pop		r16
+	pop		r17
 
 	;*** 	S�tt startposition (TPOSX,POSY)				***
+	sts		TPOSX, r16
+	sts		TPOSY, r17
 
 	call	ERASE_VMEM
+	call	UPDATE
+
+	pop		r17
+	pop		r16
 	ret
 
 ; ---------------------------------------
-; --- RANDOM generate TPOSX, TPOSY
+; --- RANDOM generate TPOSX, TPOSY  //KLAR?? Finns väl små fix med logiken och renare kod men annars fungerar det
 ; --- in variables passed on stack.
 ; --- Usage as:
 ; ---	push r0 
@@ -263,17 +330,32 @@ WARM:
 ; ---	pop TPOSY
 ; --- Uses r16
 RANDOM:
-	in		r16,SPH
-	mov		ZH,r16
-	in		r16,SPL
-	mov		ZL,r16
-	lds		r16,SEED
-	
-	;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
-	;*** 	Anv�nd SEED f�r att ber�kna TPOSY		***
+	push	ZH
+	push	ZL
+	//---------------
+	in  	ZH,SPH
+	in  	ZL,SPL
+	//---------------
+	push	r16
 
-	;***		; store TPOSX	2..6
-	;***		; store TPOSY   0..4
+	//Räknare ut posX
+	lds		r16, SEED
+	andi	r16, $7
+	cpi		r16, 5
+	brmi	NEXT_POS
+	subi	r16, 4
+NEXT_POS:
+	std		Z + 5, r16
+	sts		TPOSX, r16
+	//Räknar ut POS_Y
+	lds		r16, SEED
+	andi	r16, $7
+	std		Z + 6, r16
+	sts		TPOSY, r16
+	
+	pop		r16
+	pop		ZH
+	pop		ZL
 	ret
 
 
