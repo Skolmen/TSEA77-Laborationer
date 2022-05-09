@@ -6,7 +6,7 @@
 	.dseg
 	.org		SRAM_START
 TIME: 
-	.byte 4		; Definerar TIME
+	.byte 4	; Definerar TIME
 CURRENT_SEGMENT:
 	.byte 1
 
@@ -39,7 +39,7 @@ INIT:
 INIT_IO:
 	ldi			r16, $7F
 	out			DDRB, r16
-	ldi			r16, $2
+	ldi			r16, $3
 	out			DDRA, r16
 
 INIT_INTERUPTS:
@@ -101,7 +101,7 @@ MUX:
 	inc 		r17
 	sts			CURRENT_SEGMENT, r17
 
-	call		WAIT  //Bör vara kvar men väldigt liten delay då processon är för snabb
+	;call		WAIT  //Bör vara kvar men väldigt liten delay då processon är för snabb
 
 	out			PORTB, r16
 
@@ -124,10 +124,10 @@ BCD:
 	ldi			XL, LOW (TIME)
 
 	ldi			r17, 0b1010
-	ldi			r18, 0b1100 //XOR Värdet
+	ldi			r18, 0b1100 //XOR Värdet 
 
 BCD_INC:		
-	clr			r16
+	;clr			r16
 	ld			r16, X
 	inc			r16
 	st 			X, r16
@@ -138,7 +138,7 @@ BCD_INC:
 	clr			r16
 	st			X+, r16
 
-	//Om man kommer till TIME + 5 börja om
+	//Om man kommer till TIME + 4 börja om
 	mov			r16, XL
 	subi		r16, LOW(TIME)
 	cpi			r16, SEGMENTS
@@ -159,10 +159,12 @@ BCD_DONE:
 LOOKUP:
 	push 		ZH 
 	push 		ZL
+
 	ldi			ZH, HIGH(SEG_DISP_TBL * 2)
 	ldi			ZL, LOW (SEG_DISP_TBL * 2)
 	add			ZL, r16
 	lpm			r16, Z
+
 	pop			ZL
 	pop			ZH
 	ret
