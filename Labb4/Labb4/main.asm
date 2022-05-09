@@ -1,7 +1,7 @@
 
 	.equ	VMEM_SZ     = 5		; #rows on display
-	.equ	AD_CHAN_X   = 0		; ADC0=PA0, PORTA bit 0 X-led
-	.equ	AD_CHAN_Y   = 1		; ADC1=PA1, PORTA bit 1 Y-led
+	.equ	AD_CHAN_X   = 3		; ADC0=PA0, PORTA bit 3 X-led
+	.equ	AD_CHAN_Y   = 4		; ADC1=PA1, PORTA bit 4 Y-led
 	.equ	GAME_SPEED  = 70	; inter-run delay (millisecs)
 	.equ	PRESCALE    = 7		; AD-prescaler value
 	.equ	BEEP_PITCH  = 20	; Victory beep pitch
@@ -54,9 +54,10 @@ START:
 	// Ställer in stackpekare
 	ldi		r16, HIGH(RAMEND)
 	out		SPH, r16
-	ldi		r17, LOW(RAMDEND)
+	ldi		r17, LOW(RAMEND)
 	out		SPL, r16
 
+	call	AD_INIT
 	call	IO_INIT
 	call	HW_INIT	
 	call	WARM
@@ -89,7 +90,7 @@ ISR0_MUX:
 	;*** 	utskriften till diodmatrisen. �ka SEED.		***
 
 	ldi		r16, 0
-	out		PORTB, 0
+	out		PORTB, r16
 
 	lds		r17, LINE
 
@@ -100,16 +101,19 @@ ISR0_MUX:
 	ld		r16, X
 
 	out		PORTA, r17
-	; call WAIT?
-	out		PORTB, r16
 
 	inc		r17
 	cpi		r17, VMEM_SZ
+
+	; call WAIT?
+	;out		PORTB, r16
+
 	brne	MUX_DONE
 	clr		r17
 	
 MUX_DONE:
 	sts		LINE, r17
+	out		PORTB, r16
 	//------------------
 	pop		XL
 	pop		XH
@@ -127,6 +131,11 @@ JOYSTICK:
 
 	;*** 	...och samma f�r Y-led 				***
 
+	; Ta in data från joystick
+	; Flytta beronede på insignal
+	; Ta in signlaer på PORTA7 och 6 x=6, y=7
+
+
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
 	ret
@@ -134,7 +143,7 @@ JOY_LIM:
 ; ---------------------------------------
 ; --- LIMITS Limit POSX,POSY coordinates	
 ; --- Uses r16,r17
-LIMITS:
+LIMITS:		//---- SKA EJ ÄNDRAS -----
 	lds		r16,POSX	; variable
 	ldi		r17,7		; upper limit+1
 	call	POS_LIM		; actual work
@@ -145,7 +154,7 @@ LIMITS:
 	sts		POSY,r16
 	ret
 
-POS_LIM:
+POS_LIM:	//---- SKA EJ ÄNDRAS -----
 	ori		r16,0		; negative?
 	brmi	POS_LESS	; POSX neg => add 1
 	cp		r16,r17		; past edge
@@ -160,7 +169,7 @@ POS_OK:
 ; --- UPDATE VMEM
 ; --- with POSX/Y, TPOSX/Y
 ; --- Uses r16, r17
-UPDATE:	
+UPDATE:		//---- SKA EJ ÄNDRAS -----
 	clr		ZH 
 	ldi		ZL,LOW(POSX)
 	call 	SETPOS
@@ -173,7 +182,7 @@ UPDATE:
 ; --- Uses r16, r17
 ; --- 1st call Z points to POSX at entry and POSY at exit
 ; --- 2nd call Z points to TPOSX at entry and TPOSY at exit
-SETPOS:
+SETPOS:		//---- SKA EJ ÄNDRAS -----
 	ld		r17,Z+  	; r17=POSX
 	call	SETBIT		; r16=bitpattern for VMEM+POSY
 	ld		r17,Z		; r17=POSY Z to POSY
@@ -186,7 +195,7 @@ SETPOS:
 	
 ; --- SETBIT Set bit r17 on r16
 ; --- Uses r16, r17
-SETBIT:
+SETBIT:		//---- SKA EJ ÄNDRAS -----
 	ldi		r16,$01		; bit to shift
 SETBIT_LOOP:
 	dec 	r17			
@@ -200,10 +209,11 @@ SETBIT_END:
 ; --- Hardware init
 ; --- Uses r16
 HW_INIT:
+	ldi			r16, (1<<ISC01) | (0<<ISC00)
+	out			MCUCR, r16
 
-	;*** 	Konfigurera h�rdvara och MUX-avbrott enligt ***
-	;*** 	ditt elektriska schema. Konfigurera 		***
-	;*** 	flanktriggat avbrott p� INT0 (PD2).			***
+	ldi			r16, (1<<INT0)
+	out			GICR, r16
 	
 	sei			; display on
 	ret
@@ -213,11 +223,20 @@ HW_INIT:
 ; --- Uses r16
 IO_INIT:
 	ser		r16
-	out		DDRB, r16
-	ldi		r16, $7
-	out		DDRA, r16
+	out		DDRB, r16	//PB0-6 Disp, PB7, Ljud
+	ldi		r16, $3
+	out		DDRA, r16	//PA0-3 Disp row, PA3-4 joystick input
 	ret
 
+; ---------------------------------------
+; --- AD init
+; --- Uses r16
+AD_INIT:
+	clr		r16
+	ldi		r16, (1<<MUX1) | (1<<MUX0) | (1<<MUX2)
+	out		ADMUX, r16
+
+	ret
 ; ---------------------------------------
 ; --- WARM start. Set up a new game
 WARM:
@@ -251,7 +270,7 @@ RANDOM:
 	lds		r16,SEED
 	
 	;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
-	;*** 	Anv�nd SEED f�r att ber�kna TPOSX		***
+	;*** 	Anv�nd SEED f�r att ber�kna TPOSY		***
 
 	;***		; store TPOSX	2..6
 	;***		; store TPOSY   0..4
@@ -260,20 +279,54 @@ RANDOM:
 
 ; ---------------------------------------
 ; --- Erase Videomemory bytes
-; --- Clears VMEM..VMEM+4
-	
+; --- Clears VMEM..VMEM+4		//KLAR
 ERASE_VMEM:
+	push	XH
+	push	XL
+	push	r16
+	push	r17
+	//--------------
+	
+	ldi		XH, HIGH(VMEM)
+	ldi		XL, LOW(VMEM)
 
-;*** 	Radera videominnet						***
+	ldi		r16, VMEM_SZ
+	ldi		r17, 0
 
+FOR_EACH_VMEM:
+	st		X+, r17
+	dec		r16
+	cpi		r16, 0
+	brne	FOR_EACH_VMEM
+	
+	//--------------
+	pop		r17
+	pop		r16
+	pop		XL
+	pop		XH
 	ret
 
 ; ---------------------------------------
-; --- BEEP(r16) r16 half cycles of BEEP-PITCH
+; --- BEEP(r16) r16 half cycles of BEEP-PITCH //KLAR
 BEEP:	
-
-	;*** skriv kod f�r ett ljud som ska markera tr�ff 	***
-
+	sbi		PORTB,7
+	call	BEEP_CYCLE
+	cbi		PORTB, 7
+	call	BEEP_CYCLE
+	dec		r16
+	brne	BEEP
 	ret
 
-			
+BEEP_CYCLE:
+	push		r25
+	push		r24
+	//-----------------
+	ldi 		r25, HIGH(BEEP_PITCH)
+	ldi 		r24, LOW(BEEP_PITCH)
+BEEP_CYCLE_INNER:
+	sbiw  		r24, 1
+	brne  		BEEP_CYCLE_INNER
+	//-----------------
+	pop			r24
+	pop			r25
+	ret	
