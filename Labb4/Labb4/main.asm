@@ -157,28 +157,51 @@ JOYSTICK:
 	; Sedan y-led
 
 	; X-LED
-	ldi		r16, (1 << MUX0) | (1 << MUX1) | (1 << ADLAR)
+	ldi		r16, (1 << MUX0) | (1 << MUX1) //Ta in analogsignal på PORTA3 (X-led)
 ADC_CONVERT:
-	out		ADMUX, r16
+	ldi		r17, (1<<ADEN) | (1 << ADPS1) | (1 << ADPS0) //AD-enable ställer in prescaler på 8
+	out		ADCSRA, r17	//Laddar in r17
+	out		ADMUX, r16	//Laddar in r16
 CONVERT:
-	sbi		ADCSRA, ADSC
+	sbi		ADCSRA, ADSC // Startar omvandling
 WAIT_FOR_CONVERT:
-	sbic	ADCSRA, ADSC
+	sbic	ADCSRA, ADSC // Väntar att omavandling ska bli klar
 	rjmp	WAIT_FOR_CONVERT
 	in		r16, ADCH
-	andi	r16, $C0
 
+	; r16 = 0x40, 0x80 Ska stå stilla
+	; r16 = 0xC0 (Upp/Vänster), 0x00 (Ner/Höger)
+	; Minska eller öka X/Y-pos
 
-	;Minska eller öka X/Y-pos
+	lds		r17, ADMUX
+	cpi		r17, (1 << MUX2) | (1 << ADLAR) // Y-led
+	breq	Y_DIR
+X_DIR:
+	cpi		r16, 0xC0
+	breq	X_LEFT
+	cpi		r16, 0
+	breq	X_RIGHT
+	rjmp	NEXT
+X_LEFT:
+	DECSRAM POSX
+	rjmp NEXT
+X_RIGHT:
+	INCSRAM POSX
+NEXT:
+	ldi		r16, (1 << MUX2)
+	rjmp	ADC_CONVERT	
 
-
-	lds		r16, ADMUX
-	cpi		r16, (1 << MUX2) | (1 << ADLAR)
-	breq	JOY_LIM
-	; Y-LED
-	ldi		r16, (1 << MUX2) | (1 << ADLAR)
-	rjmp	ADC_CONVERT
-	
+Y_DIR:
+	cpi		r16, 0xC0
+	breq	Y_UP
+	cpi		r16, 0
+	breq	Y_DOWN
+	rjmp	NEXT
+Y_UP:
+	INCSRAM POSY
+	rjmp JOY_LIM
+Y_DOWN:
+	DECSRAM POSY
 
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
