@@ -6,6 +6,7 @@
 	.equ	PRESCALE    = 7		; AD-prescaler value
 	.equ	BEEP_PITCH  = 20	; Victory beep pitch
 	.equ	BEEP_LENGTH = 100	; Victory beep length
+	.equ	MILISECOND = 255    ; Millesecond delay for game speed
 	
 ; ---------------------------------------
 ; --- Memory layout in SRAM
@@ -41,6 +42,17 @@ SEED:
 		sts	@0,r16
 	.endmacro
 
+	.macro INCSRAMP	; inc byte in SRAM Pointer
+		ld	r16,@0
+		inc	r16
+		st	@0,r16
+	.endmacro
+
+	.macro DECSRAMP	; dec byte in SRAM Pointer
+		ld	r16,@0
+		dec	r16
+		st	@0,r16
+	.endmacro
 ; ---------------------------------------
 ; --- Code
 	.cseg
@@ -59,10 +71,6 @@ START:
 	ldi		r17, LOW(RAMEND)
 	out		SPL, r16
 
-	ldi		r16, 3
-	sts		SEED, r16
-
-
 	call	AD_INIT
 	call	IO_INIT
 	call	HW_INIT	
@@ -73,9 +81,10 @@ RUN:
 	call	UPDATE
 
 	;*** 	V�nta en stund s� inte spelet g�r f�r fort 	***
+	call	GAME_DELAY
 	
 	;*** 	Avg�r om tr�ff				 	***
-
+	call	IS_HIT
 	brne	NO_HIT	
 	ldi		r16, BEEP_LENGTH
 	call	BEEP
@@ -144,69 +153,53 @@ MUX_DONE:
 ; --- Uses r16
 JOYSTICK:	
 	push	r16
+	push	XH
+	push	XL
 
-	;*** 	skriv kod som �kar eller minskar POSX beroende 	***
-	;*** 	p� insignalen fr�n A/D-omvandlaren i X-led...	***
-
-	;*** 	...och samma f�r Y-led 				***
-
-	; Ta in data från joystick
-	; PortA3 x-led = ADC 3 = 00011 ADMUX
-	; PortA4 y-led = ADC 4 = 00100 ADMUX
-	; Först X-led
-	; Sedan y-led
+	ldi		XH, HIGH(POSX)
+	ldi		XL, LOW(POSX)
 
 	; X-LED
-	ldi		r16, (1 << MUX0) | (1 << MUX1) //Ta in analogsignal på PORTA3 (X-led)
-ADC_CONVERT:
-	ldi		r17, (1<<ADEN) | (1 << ADPS1) | (1 << ADPS0) //AD-enable ställer in prescaler på 8
-	out		ADCSRA, r17	//Laddar in r17
-	out		ADMUX, r16	//Laddar in r16
-CONVERT:
-	sbi		ADCSRA, ADSC // Startar omvandling
-WAIT_FOR_CONVERT:
-	sbic	ADCSRA, ADSC // Väntar att omavandling ska bli klar
-	rjmp	WAIT_FOR_CONVERT
-	in		r16, ADCH
+	ldi		r16, (1 << MUX1) | (1 << MUX0)
+	call	GET_POS
 
-	; r16 = 0x40, 0x80 Ska stå stilla
-	; r16 = 0xC0 (Upp/Vänster), 0x00 (Ner/Höger)
-	; Minska eller öka X/Y-pos
+	inc		XL
 
-	lds		r17, ADMUX
-	cpi		r17, (1 << MUX2) | (1 << ADLAR) // Y-led
-	breq	Y_DIR
-X_DIR:
-	cpi		r16, 0xC0
-	breq	X_LEFT
-	cpi		r16, 0
-	breq	X_RIGHT
-	rjmp	NEXT
-X_LEFT:
-	DECSRAM POSX
-	rjmp NEXT
-X_RIGHT:
-	INCSRAM POSX
-NEXT:
-	ldi		r16, (1 << MUX2)
-	rjmp	ADC_CONVERT	
-
-Y_DIR:
-	cpi		r16, 0xC0
-	breq	Y_UP
-	cpi		r16, 0
-	breq	Y_DOWN
-	rjmp	NEXT
-Y_UP:
-	INCSRAM POSY
-	rjmp JOY_LIM
-Y_DOWN:
-	DECSRAM POSY
+	; Y-LED
+	ldi		r16, (1 << MUX3)
+	call	GET_POS
 
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
-
+	
+	pop		XL
+	pop		XH
 	pop		r16
+	ret
+
+GET_POS:
+	out		ADMUX, r16
+CONVERT:
+	sbi		ADCSRA, ADSC
+WAIT_FOR_CONV:
+	sbic	ADCSRA, ADSC
+	rjmp	WAIT_FOR_CONV
+	in		r16, ADCH
+
+	cpi		r16, $3
+	breq	INC_POS
+	cpi		r16, 00
+	breq	DEC_POS
+	rjmp	POS_DONE
+
+INC_POS:
+	INCSRAMP X
+	rjmp	POS_DONE
+
+DEC_POS:
+	DECSRAMP X
+
+POS_DONE:
 	ret
 
 ; ---------------------------------------
@@ -308,7 +301,8 @@ AD_INIT:
 	push	r16
 	
 	clr		r16
-	ldi		r16, (1<<ADEN) | (1 << ADPS1) | (1 << ADPS0)
+
+	ldi		r16, (1 << ADEN) | (PRESCALE << ADPS0)
 	out		ADCSRA, r16
 
 	pop		r16
@@ -413,25 +407,70 @@ FOR_EACH_VMEM:
 
 ; ---------------------------------------
 ; --- BEEP(r16) r16 half cycles of BEEP-PITCH //KLAR
-BEEP:	
-	sbi		PORTB,7
-	call	BEEP_CYCLE
+BEEP:
+	push	r24
+	push	r25
+BEEP_INNER:	
+	sbi		PORTB, 7
+	ldi 	r25, HIGH(BEEP_PITCH)
+	ldi 	r24, LOW(BEEP_PITCH)
+	call	WAIT
 	cbi		PORTB, 7
-	call	BEEP_CYCLE
+	ldi 	r25, HIGH(BEEP_PITCH)
+	ldi 	r24, LOW(BEEP_PITCH)
+	call	WAIT
 	dec		r16
-	brne	BEEP
+	brne	BEEP_INNER
 	ret
 
-BEEP_CYCLE:
-	push		r25
-	push		r24
-	//-----------------
-	ldi 		r25, HIGH(BEEP_PITCH)
-	ldi 		r24, LOW(BEEP_PITCH)
-BEEP_CYCLE_INNER:
-	sbiw  		r24, 1
-	brne  		BEEP_CYCLE_INNER
-	//-----------------
-	pop			r24
-	pop			r25
+; ---------------------------------------
+; --- GAME_DELAY waits 70 miliseconds based on the MILISECOND value
+GAME_DELAY:
+	push	r25
+	push	r24
+	push	r16
+	ldi		r16, GAME_SPEED
+GAME_DELAY_INNER:
+	ldi		r24, LOW(MILISECOND)
+	ldi		r25, HIGH(MILISECOND)
+	call	WAIT
+	dec		r16
+	brne	GAME_DELAY_INNER
+	pop		r16
+	pop		r24
+	pop		r25
+	ret	
+
+; ---------------------------------------
+; --- WAIT(r24:r25) waits the value of the word r24:r25
+WAIT:
+	sbiw  	r24, 1
+	brne	WAIT
+	ret	
+
+; ---------------------------------------
+; --- IS_HIT affects the ZERO flag if hit, ZERO = 1, if no hit ZERO = 0
+IS_HIT:
+	push	r16
+	push	r17
+	push	ZH
+	push	ZL
+
+	ldi		ZH, HIGH(POSX)
+	ldi		ZL, LOW(POSX)
+
+	ld		r16, Z
+	ldd		r17, Z + 2
+	cp		r16, r17
+	brne	IS_HIT_DONE
+
+	ldd		r16, Z + 1
+	ldd		r17, Z + 3
+	cp		r16, r17
+
+IS_HIT_DONE:
+	pop		ZL
+	pop		ZH
+	pop		r17
+	pop		r16
 	ret	
