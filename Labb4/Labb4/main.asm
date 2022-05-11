@@ -4,8 +4,8 @@
 	.equ	AD_CHAN_Y   = 4		; ADC1=PA1, PORTA bit 4 Y-led
 	.equ	GAME_SPEED  = 70	; inter-run delay (millisecs)
 	.equ	PRESCALE    = 7		; AD-prescaler value
-	.equ	BEEP_PITCH  = 20	; Victory beep pitch
-	.equ	BEEP_LENGTH = 100	; Victory beep length
+	.equ	BEEP_PITCH  = 5	; Victory beep pitch
+	.equ	BEEP_LENGTH = 255	; Victory beep length
 	.equ	MILISECOND = 255    ; Millesecond delay for game speed
 	
 ; ---------------------------------------
@@ -132,9 +132,6 @@ MUX:
 	inc		r17
 	cpi		r17, VMEM_SZ
 
-	; call WAIT?
-	;out		PORTB, r16
-
 	brne	MUX_DONE
 	clr		r17
 	
@@ -166,7 +163,7 @@ JOYSTICK:
 	inc		XL
 
 	; Y-LED
-	ldi		r16, (1 << MUX3)
+	ldi		r16, (1 << MUX2)
 	call	GET_POS
 
 JOY_LIM:
@@ -187,16 +184,30 @@ WAIT_FOR_CONV:
 	in		r16, ADCH
 
 	cpi		r16, $3
-	breq	INC_POS
+	breq	UPorLEFT
 	cpi		r16, 00
-	breq	DEC_POS
+	breq	DOWNorRIGHT
 	rjmp	POS_DONE
 
-INC_POS:
+UPorLEFT:
+	ldi		r16, LOW(POSX)
+	cp		r16, XL
+	brne	UP
+LEFT:
+	DECSRAMP X
+	rjmp	POS_DONE
+UP:
 	INCSRAMP X
 	rjmp	POS_DONE
 
-DEC_POS:
+DOWNorRIGHT:
+	ldi		r16, LOW(POSX)
+	cp		r16, XL
+	brne	DOWN
+RIGHT:
+	INCSRAMP X
+	rjmp	POS_DONE
+DOWN:
 	DECSRAMP X
 
 POS_DONE:
@@ -313,10 +324,13 @@ WARM:
 	push	r16
 	push	r17
 
+	call	RESET
+	call	ERASE_VMEM
+
 	;*** 	S�tt startposition (POSX,POSY)=(0,2)		***
 	ldi		r16, 0
 	sts		POSX, r16
-	ldi		r16, 2
+	ldi		r16, 3
 	sts		POSY, r16
 
 	push	r0		
@@ -329,7 +343,6 @@ WARM:
 	sts		TPOSX, r16
 	sts		TPOSY, r17
 
-	call	ERASE_VMEM
 	call	UPDATE
 
 	pop		r17
@@ -355,21 +368,25 @@ RANDOM:
 	//---------------
 	push	r16
 
-	//Räknare ut posX
+Y_VALUE:
 	lds		r16, SEED
-	andi	r16, $7
+	andi	r16, 7
 	cpi		r16, 5
-	brmi	NEXT_POS
+	brmi	X_VALUE
 	subi	r16, 4
-NEXT_POS:
-	std		Z + 5, r16
-	sts		TPOSX, r16
-	//Räknar ut POS_Y
-	lds		r16, SEED
-	andi	r16, $7
+X_VALUE:
 	std		Z + 6, r16
-	sts		TPOSY, r16
-	
+	lds		r16, SEED
+	andi	r16, 7
+	cpi		r16, 7
+	brne	X_MODIFY
+	dec		r16
+X_MODIFY:
+	cpi		r16, 3
+	brpl	RANDOM_DONE
+	subi	r16, -3
+RANDOM_DONE:
+	std		Z + 5, r16
 	pop		r16
 	pop		ZH
 	pop		ZL
@@ -474,3 +491,17 @@ IS_HIT_DONE:
 	pop		r17
 	pop		r16
 	ret	
+
+; ---------------------------------------
+; --- RESET Erases SRAM
+RESET:
+	push	r16
+	ldi		r16,0
+	sts		POSX, r16
+	sts		POSY, r16
+	sts		TPOSX, r16
+	sts		TPOSY, r16
+	sts		LINE, r16
+	sts		POSX, r16
+	pop		r16
+	ret
