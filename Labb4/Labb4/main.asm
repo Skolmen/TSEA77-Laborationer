@@ -41,18 +41,6 @@ SEED:
 		dec	r16
 		sts	@0,r16
 	.endmacro
-
-	.macro INCSRAMP	; inc byte in SRAM Pointer
-		ld	r16,@0
-		inc	r16
-		st	@0,r16
-	.endmacro
-
-	.macro DECSRAMP	; dec byte in SRAM Pointer
-		ld	r16,@0
-		dec	r16
-		st	@0,r16
-	.endmacro
 ; ---------------------------------------
 ; --- Code
 	.cseg
@@ -75,15 +63,15 @@ START:
 	call	IO_INIT
 	call	HW_INIT	
 	call	WARM
+	ldi		r16, 0
+	sts		LINE, r16
 RUN:
-	call	JOYSTICK
 	call	ERASE_VMEM
+	call	JOYSTICK
 	call	UPDATE
 
-	;*** 	V�nta en stund s� inte spelet g�r f�r fort 	***
 	call	GAME_DELAY
 	
-	;*** 	Avg�r om tr�ff				 	***
 	call	IS_HIT
 	brne	NO_HIT	
 	ldi		r16, BEEP_LENGTH
@@ -112,10 +100,6 @@ MUX:
 	push	XH
 	push	XL
 	//------------------
-
-	;*** 	skriv rutin som handhar multiplexningen och ***
-	;*** 	utskriften till diodmatrisen. �ka SEED.		***
-
 	ldi		r16, 0
 	out		PORTB, r16
 
@@ -130,7 +114,7 @@ MUX:
 	out		PORTA, r17
 
 	inc		r17
-	cpi		r17, VMEM_SZ
+	cpi		r17, VMEM_SZ 
 
 	brne	MUX_DONE
 	clr		r17
@@ -150,67 +134,69 @@ MUX_DONE:
 ; --- Uses r16
 JOYSTICK:	
 	push	r16
-	push	XH
-	push	XL
-
-	ldi		XH, HIGH(POSX)
-	ldi		XL, LOW(POSX)
-
 	; X-LED
 	ldi		r16, (1 << MUX1) | (1 << MUX0)
-	call	GET_POS
-
-	inc		XL
+	call	CONVERT
+	call	UPT_X_POS
 
 	; Y-LED
 	ldi		r16, (1 << MUX2)
-	call	GET_POS
+	call	CONVERT
+	call	UPT_Y_POS
 
 JOY_LIM:
 	call	LIMITS		; don't fall off world!
-	
-	pop		XL
-	pop		XH
 	pop		r16
 	ret
 
-GET_POS:
+; ---------------------------------------
+; --- Convert analog data and converts to digital
+; --- Arguments:
+; --- r16 with to use a ADMUX
+; --- Returns digital to r16
+CONVERT:
 	out		ADMUX, r16
 CONVERT:
 	sbi		ADCSRA, ADSC
 WAIT_FOR_CONV:
 	sbic	ADCSRA, ADSC
 	rjmp	WAIT_FOR_CONV
+	clr		r16
 	in		r16, ADCH
+	ret
 
-	cpi		r16, $3
-	breq	UPorLEFT
-	cpi		r16, 00
-	breq	DOWNorRIGHT
-	rjmp	POS_DONE
-
-UPorLEFT:
-	ldi		r16, LOW(POSX)
-	cp		r16, XL
-	brne	UP
+; ---------------------------------------
+; --- UPT_X_POS Updates X position
+; --- Arguments:
+; --- r16 for direction, 0b11 - LEFT, 0b00 - RIGHT
+UPT_X_POS:
+	cpi		r16, 0x3
+	breq	LEFT
+	cpi		r16, 0x0
+	breq	RIGHT
+	ret
 LEFT:
-	DECSRAMP X
-	rjmp	POS_DONE
-UP:
-	INCSRAMP X
-	rjmp	POS_DONE
-
-DOWNorRIGHT:
-	ldi		r16, LOW(POSX)
-	cp		r16, XL
-	brne	DOWN
+	INCSRAM POSX
+	ret
 RIGHT:
-	INCSRAMP X
-	rjmp	POS_DONE
-DOWN:
-	DECSRAMP X
+	DECSRAM POSX
+	ret
 
-POS_DONE:
+; ---------------------------------------
+; --- UPT_Y_POS Updates Y position
+; --- Arguments:
+; --- r16 for direction, 0b11 - UP, 0b00 - DOWN
+UPT_Y_POS:
+	cpi		r16, 0x3
+	breq	UP
+	cpi		r16, 0x0
+	breq	DOWN
+	ret
+UP:
+	INCSRAM POSY
+	ret
+DOWN:
+	DECSRAM POSY
 	ret
 
 ; ---------------------------------------
@@ -284,10 +270,8 @@ SETBIT_END:
 HW_INIT:
 	ldi			r16, (1<<ISC01) | (0<<ISC00)
 	out			MCUCR, r16
-
 	ldi			r16, (1<<INT0)
-	out			GICR, r16
-	
+	out			GICR, r16	
 	sei			; display on
 	ret
 
@@ -296,12 +280,10 @@ HW_INIT:
 ; --- Uses r16
 IO_INIT:
 	push	r16
-
 	ser		r16
 	out		DDRB, r16	//PB0-6 Disp, PB7, Ljud
 	ldi		r16, $3
 	out		DDRA, r16	//PA0-3 Disp row, PA3-4 joystick input
-	
 	pop		r16
 	ret
 
@@ -310,42 +292,35 @@ IO_INIT:
 ; --- Uses r16
 AD_INIT:
 	push	r16
-	
 	clr		r16
-
 	ldi		r16, (1 << ADEN) | (PRESCALE << ADPS0)
 	out		ADCSRA, r16
-
 	pop		r16
 	ret
 ; ---------------------------------------
 ; --- WARM start. Set up a new game
 WARM:
 	push	r16
-	push	r17
 
-	call	RESET
 	call	ERASE_VMEM
 
 	;*** 	S�tt startposition (POSX,POSY)=(0,2)		***
 	ldi		r16, 0
 	sts		POSX, r16
-	ldi		r16, 3
+	ldi		r16, 2
 	sts		POSY, r16
 
+	;*** 	S�tt startposition (TPOSX,POSY)				***
 	push	r0		
 	push	r0		
 	call	RANDOM		; RANDOM returns x,y on stack
 	pop		r16
-	pop		r17
-
-	;*** 	S�tt startposition (TPOSX,POSY)				***
 	sts		TPOSX, r16
-	sts		TPOSY, r17
+	pop		r16
+	sts		TPOSY, r16
 
 	call	UPDATE
 
-	pop		r17
 	pop		r16
 	ret
 
@@ -397,29 +372,16 @@ RANDOM_DONE:
 ; --- Erase Videomemory bytes
 ; --- Clears VMEM..VMEM+4		//KLAR
 ERASE_VMEM:
-	push	XH
-	push	XL
 	push	r16
-	push	r17
-	//--------------
-	
-	ldi		XH, HIGH(VMEM)
-	ldi		XL, LOW(VMEM)
 
-	ldi		r16, VMEM_SZ
-	ldi		r17, 0
+	ldi		r16, 0
+	sts		VMEM, r16
+	sts		VMEM + 1, r16
+	sts		VMEM + 2, r16
+	sts		VMEM + 3, r16
+	sts		VMEM + 4, r16
 
-FOR_EACH_VMEM:
-	st		X+, r17
-	dec		r16
-	cpi		r16, 0
-	brne	FOR_EACH_VMEM
-	
-	//--------------
-	pop		r17
 	pop		r16
-	pop		XL
-	pop		XH
 	ret
 
 ; ---------------------------------------
@@ -446,6 +408,7 @@ GAME_DELAY:
 	push	r25
 	push	r24
 	push	r16
+
 	ldi		r16, GAME_SPEED
 GAME_DELAY_INNER:
 	ldi		r24, LOW(MILISECOND)
@@ -453,6 +416,7 @@ GAME_DELAY_INNER:
 	call	WAIT
 	dec		r16
 	brne	GAME_DELAY_INNER
+
 	pop		r16
 	pop		r24
 	pop		r25
@@ -470,38 +434,17 @@ WAIT:
 IS_HIT:
 	push	r16
 	push	r17
-	push	ZH
-	push	ZL
 
-	ldi		ZH, HIGH(POSX)
-	ldi		ZL, LOW(POSX)
-
-	ld		r16, Z
-	ldd		r17, Z + 2
+	lds		r16, POSX
+	lds		r17, TPOSX
 	cp		r16, r17
 	brne	IS_HIT_DONE
 
-	ldd		r16, Z + 1
-	ldd		r17, Z + 3
+	lds		r16, POSY
+	lds		r17, TPOSY
 	cp		r16, r17
 
 IS_HIT_DONE:
-	pop		ZL
-	pop		ZH
 	pop		r17
 	pop		r16
 	ret	
-
-; ---------------------------------------
-; --- RESET Erases SRAM
-RESET:
-	push	r16
-	ldi		r16,0
-	sts		POSX, r16
-	sts		POSY, r16
-	sts		TPOSX, r16
-	sts		TPOSY, r16
-	sts		LINE, r16
-	sts		POSX, r16
-	pop		r16
-	ret
